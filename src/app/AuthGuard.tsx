@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { io } from "socket.io-client";
+import { apiUrl, socketUrl } from "@/utils/api";
 
 // Dynamic SVG Icons
 const LayoutDashboard = () => (
@@ -90,7 +91,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
         const fetchNotifications = async () => {
             try {
-                const res = await fetch("http://localhost:4000/api/notifications");
+                const res = await fetch(`${apiUrl}/notifications`);
                 if (res.ok) {
                     const data = await res.json();
                     setNotifications(data);
@@ -103,7 +104,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
         fetchNotifications();
 
-        const socket = io("http://localhost:4000");
+        const socket = io(socketUrl);
 
         socket.on("new_notification", (notification: any) => {
             setNotifications((prev) => [notification, ...prev]);
@@ -113,7 +114,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         return () => {
             socket.disconnect();
         };
-    }, [isAuthenticated]);
+    }, [isAuthenticated, apiUrl, socketUrl]);
 
     // Close dropdown on outside click
     useEffect(() => {
@@ -130,7 +131,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         // Mark as read in backend
         if (!notification.isRead) {
             try {
-                await fetch(`http://localhost:4000/api/notifications/${notification._id}/read`, {
+                await fetch(`${apiUrl}/notifications/${notification._id}/read`, {
                     method: 'PUT'
                 });
 
@@ -154,7 +155,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
     const markAllAsRead = async () => {
         try {
-            await fetch('http://localhost:4000/api/notifications/read-all', { method: 'PUT' });
+            await fetch(`${apiUrl}/notifications/read-all`, { method: 'PUT' });
             setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
             setUnreadCount(0);
         } catch (err) {

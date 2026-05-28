@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
+import { apiUrl } from "@/utils/api";
 import { 
     Plus, Search, Edit2, Trash2, 
     Truck, MapPin, Gauge, LayoutGrid, 
@@ -32,8 +33,6 @@ export default function PricingMatrix() {
         platform_commission_percent: 15,
         isActive: true
     });
-
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
     useEffect(() => {
         fetchData();

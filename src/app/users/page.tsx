@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { apiUrl } from "@/utils/api";
 
 // Premium Icons
 const UserCheck = () => (
@@ -28,7 +29,6 @@ export default function UsersManagementPage() {
     // Fetch Users
     const fetchUsers = async () => {
         try {
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
             const res = await fetch(`${apiUrl}/users`);
             if (!res.ok) throw new Error("Failed to fetch users");
             
@@ -53,7 +53,6 @@ export default function UsersManagementPage() {
         
         setActionLoading(userId);
         try {
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
             const res = await fetch(`${apiUrl}/users/${userId}/block`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },

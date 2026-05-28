@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useState, useMemo } from 'react';
+import { apiUrl, getImageUrl } from '@/utils/api';
 import {
     CheckCircledIcon,
     CrossCircledIcon,
@@ -29,15 +30,6 @@ export default function KYCPage() {
     const [activeTab, setActiveTab] = useState<KycTab>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [lightboxImg, setLightboxImg] = useState<string | null>(null);
-
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
-    const backendUrl = apiUrl.replace('/api', '');
-
-    const getImageUrl = (path: string) => {
-        if (!path) return '';
-        if (path.startsWith('http://') || path.startsWith('https://')) return path;
-        return `${backendUrl}${path}`;
-    };
 
     useEffect(() => { fetchAllDrivers(); }, []);
 

@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { io } from "socket.io-client";
+import { apiUrl, socketUrl } from "@/utils/api";
 
 // Premium Icons for Stat Cards
 const BoxIcon = () => (
@@ -47,7 +48,6 @@ export default function Home() {
     const fetchDashboardData = async (silent = false) => {
       try {
         if (!silent) setLoading(true);
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
         const [ordersRes, driversRes] = await Promise.all([
           fetch(`${apiUrl}/orders`),
@@ -93,7 +93,7 @@ export default function Home() {
     fetchDashboardData();
 
     // Setup realtime Sync
-    const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:4000");
+    const socket = io(socketUrl);
     
     socket.on('fleet_updated', () => {
         console.log("Realtime: Fleet update detected. Syncing dashboard...");

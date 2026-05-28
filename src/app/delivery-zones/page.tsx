@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useState, useCallback, useRef } from "react";
+import { apiUrl } from "@/utils/api";
 import { 
     GoogleMap, useJsApiLoader, DrawingManager, 
     Polygon, Circle 
@@ -110,8 +111,6 @@ export default function DeliveryZones() {
             }
         );
     };
-
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
     const fetchZones = async () => {
         try {

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { apiUrl } from "@/utils/api";
 
 export default function LoginPage() {
     const [email, setEmail] = useState("");
@@ -17,7 +18,6 @@ export default function LoginPage() {
         setError("");
 
         try {
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
             const res = await fetch(`${apiUrl}/admin/login`, {
                 method: "POST",
                 headers: {

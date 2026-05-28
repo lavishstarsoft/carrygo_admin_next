@@ -1,6 +1,7 @@
 "use client";
 import React, { useEffect, useState, useMemo } from 'react';
 import { io } from "socket.io-client";
+import { apiUrl, socketUrl, getImageUrl } from "@/utils/api";
 
 type Driver = {
     _id: string;
@@ -77,15 +78,10 @@ export default function DriversPage() {
     });
     const [saving, setSaving] = useState(false);
 
-    const apiUrl = typeof window !== 'undefined'
-        ? (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api')
-        : 'http://localhost:4000/api';
-
     // Fetch Initial Drivers & Setup Socket Sync
     useEffect(() => {
         fetchDrivers();
 
-        const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:4000";
         const socket = io(socketUrl);
 
         socket.on('fleet_updated', () => {
@@ -436,7 +432,7 @@ export default function DriversPage() {
                                                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-50 to-blue-50 text-indigo-600 border border-indigo-100 flex items-center justify-center font-black text-sm shadow-inner group-hover:scale-110 transition-transform overflow-hidden">
                                                         {driver.selfie ? (
                                                             <img 
-                                                                src={driver.selfie.startsWith('http') ? driver.selfie : `http://localhost:4000/${driver.selfie}`} 
+                                                                src={getImageUrl(driver.selfie)} 
                                                                 alt={driver.name}
                                                                 className="w-full h-full object-cover"
                                                                 onError={(e) => {
@@ -542,7 +538,7 @@ export default function DriversPage() {
                                 <div className="w-24 h-24 rounded-3xl bg-indigo-600 flex items-center justify-center text-white font-black text-3xl shadow-xl shadow-indigo-200 overflow-hidden border-2 border-white">
                                     {viewModal.selfie ? (
                                         <img 
-                                            src={viewModal.selfie.startsWith('http') ? viewModal.selfie : `http://localhost:4000/${viewModal.selfie}`} 
+                                            src={getImageUrl(viewModal.selfie)} 
                                             alt={viewModal.name}
                                             className="w-full h-full object-cover"
                                         />

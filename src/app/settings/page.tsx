@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
+import { apiUrl } from "@/utils/api";
 
 interface OptionItem {
     id: string;
@@ -71,7 +72,6 @@ export default function SettingsPage() {
     useEffect(() => {
         const fetchSettings = async () => {
             try {
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
                 const res = await fetch(`${apiUrl}/settings/app_settings`);
 
                 if (!res.ok) throw new Error("Failed to fetch settings");
@@ -97,8 +97,6 @@ export default function SettingsPage() {
         setSuccessMsg("");
 
         try {
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
-
             const payload = {
                 value: {
                     cities,
