@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  overflow-x: hidden;
+}
+
+/* Custom Scrollbar for sleek look */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.5);
+  /* Tailwind slate-400 with opacity */
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.8);
+  /* Tailwind slate-500 with opacity */
+}
+
+/* Utilities */
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .glass-panel {
+    @apply bg-white/80 backdrop-blur-xl border border-white/20 shadow-xl shadow-slate-200/40;
+  }
+
+  .dark-glass {
+    @apply bg-slate-900/95 backdrop-blur-xl border border-slate-700/50 shadow-2xl;
+  }
+}
