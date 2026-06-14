@@ -17,6 +17,9 @@ const UsersIcon = () => (
 const SearchIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
 );
+const TrashIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /><line x1="10" x2="10" y1="11" y2="17" /><line x1="14" x2="14" y1="11" y2="17" /></svg>
+);
 
 export default function UsersManagementPage() {
     const router = useRouter();
@@ -25,6 +28,9 @@ export default function UsersManagementPage() {
     const [error, setError] = useState("");
     const [searchQuery, setSearchQuery] = useState("");
     const [actionLoading, setActionLoading] = useState<string | null>(null);
+    const [deleteModal, setDeleteModal] = useState<any | null>(null);
+    const [deleteError, setDeleteError] = useState("");
+    const [saving, setSaving] = useState(false);
 
     // Fetch Users
     const fetchUsers = async () => {
@@ -74,6 +80,32 @@ export default function UsersManagementPage() {
             alert(err.message);
         } finally {
             setActionLoading(null);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!deleteModal) return;
+        setSaving(true);
+        setDeleteError("");
+        try {
+            const res = await fetch(`${apiUrl}/users/${deleteModal._id}`, { method: 'DELETE' });
+            let data: any = {};
+            const text = await res.text();
+            if (text) {
+                try { data = JSON.parse(text); } catch { data = { error: text }; }
+            }
+            if (res.ok) {
+                setUsers(prev => prev.filter(u => u._id !== deleteModal._id));
+                setDeleteModal(null);
+            } else if (res.status === 404 && !data.error) {
+                setDeleteError('Delete API not available on server. Deploy latest backend and try again.');
+            } else {
+                setDeleteError(data.error || `Failed to delete customer (${res.status})`);
+            }
+        } catch {
+            setDeleteError('Connection error. Please try again.');
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -237,26 +269,35 @@ export default function UsersManagementPage() {
 
                                         {/* Action */}
                                         <td className="px-6 py-5 text-right">
-                                            <button
-                                                onClick={() => toggleBlockStatus(user._id, user.is_blocked)}
-                                                disabled={actionLoading === user._id}
-                                                className={`
-                                                    inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm border
-                                                    ${actionLoading === user._id ? 'opacity-50 cursor-not-allowed' : ''}
-                                                    ${user.is_blocked 
-                                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-500 hover:text-white hover:border-emerald-500 hover:shadow-emerald-500/20' 
-                                                        : 'bg-white text-rose-600 border-slate-200 hover:bg-rose-50 hover:border-rose-200'
-                                                    }
-                                                `}
-                                            >
-                                                {actionLoading === user._id ? (
-                                                    <span className="animate-pulse">Processing...</span>
-                                                ) : user.is_blocked ? (
-                                                    <><UserCheck /> Unblock</>
-                                                ) : (
-                                                    <><UserX /> Block</>
-                                                )}
-                                            </button>
+                                            <div className="inline-flex items-center gap-2 justify-end">
+                                                <button
+                                                    onClick={() => toggleBlockStatus(user._id, user.is_blocked)}
+                                                    disabled={actionLoading === user._id}
+                                                    className={`
+                                                        inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm border
+                                                        ${actionLoading === user._id ? 'opacity-50 cursor-not-allowed' : ''}
+                                                        ${user.is_blocked 
+                                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-500 hover:text-white hover:border-emerald-500 hover:shadow-emerald-500/20' 
+                                                            : 'bg-white text-rose-600 border-slate-200 hover:bg-rose-50 hover:border-rose-200'
+                                                        }
+                                                    `}
+                                                >
+                                                    {actionLoading === user._id ? (
+                                                        <span className="animate-pulse">Processing...</span>
+                                                    ) : user.is_blocked ? (
+                                                        <><UserCheck /> Unblock</>
+                                                    ) : (
+                                                        <><UserX /> Block</>
+                                                    )}
+                                                </button>
+                                                <button
+                                                    onClick={() => { setDeleteError(""); setDeleteModal(user); }}
+                                                    className="p-2 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg transition-all border border-transparent hover:border-rose-100"
+                                                    title="Delete Customer"
+                                                >
+                                                    <TrashIcon />
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))
@@ -265,6 +306,38 @@ export default function UsersManagementPage() {
                     </table>
                 </div>
             </div>
+
+            {/* Delete Modal */}
+            {deleteModal && (
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in" onClick={() => setDeleteModal(null)}>
+                    <div className="bg-white rounded-[32px] max-w-sm w-full shadow-2xl border border-white" onClick={(e) => e.stopPropagation()}>
+                        <div className="p-8 text-center pt-10">
+                            <div className="relative w-16 h-16 mx-auto mb-6 flex items-center justify-center">
+                                <div className="absolute inset-0 border border-rose-200 rounded-full animate-ping opacity-20"></div>
+                                <div className="text-rose-500 scale-150"><TrashIcon /></div>
+                            </div>
+                            <h3 className="text-2xl font-black text-slate-800 tracking-tight mb-2">Delete Customer</h3>
+                            <p className="text-sm text-slate-500 font-medium">
+                                Permanently remove <span className="font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded">{deleteModal.name || deleteModal.phone}</span> from the system.
+                            </p>
+                            {(deleteModal.total_rides || 0) > 0 && (
+                                <p className="text-xs text-amber-600 font-bold mt-3 bg-amber-50 px-3 py-2 rounded-xl">
+                                    This customer has {deleteModal.total_rides} ride(s). They will be removed from the list; order history stays in the system.
+                                </p>
+                            )}
+                            {deleteError && (
+                                <p className="text-xs text-rose-600 font-bold mt-3 bg-rose-50 px-3 py-2 rounded-xl">{deleteError}</p>
+                            )}
+                        </div>
+                        <div className="p-6 pt-0 flex gap-3">
+                            <button onClick={() => setDeleteModal(null)} className="flex-1 px-5 py-3 text-xs font-black uppercase tracking-wider text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition">Cancel</button>
+                            <button onClick={handleDelete} disabled={saving} className="flex-1 px-5 py-3 text-xs font-black uppercase tracking-wider text-white bg-rose-600 hover:bg-rose-700 hover:shadow-lg hover:shadow-rose-600/30 rounded-xl transition disabled:opacity-50">
+                                {saving ? 'Deleting...' : 'Delete'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
