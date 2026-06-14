@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { io } from "socket.io-client";
 import { apiUrl, socketUrl } from "@/utils/api";
+import GoogleMapsProvider from "@/components/GoogleMapsProvider";
 
 // Dynamic SVG Icons
 const LayoutDashboard = () => (
@@ -190,6 +191,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     }
 
     return (
+        <GoogleMapsProvider>
         <div className="min-h-screen bg-[#F1F5F9] flex overflow-x-hidden selection:bg-cyan-500/30 selection:text-cyan-900">
             {/* Overlay for mobile */}
             {mobileMenuOpen && (
@@ -412,5 +414,6 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                 </main>
             </div>
         </div>
+        </GoogleMapsProvider>
     );
 }

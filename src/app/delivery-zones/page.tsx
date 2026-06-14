@@ -1,10 +1,11 @@
 "use client";
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { apiUrl } from "@/utils/api";
-import { 
-    GoogleMap, useJsApiLoader, DrawingManager, 
-    Polygon, Circle 
+import {
+    GoogleMap, DrawingManager,
+    Polygon, Circle
 } from "@react-google-maps/api";
+import { useGoogleMaps } from "@/components/GoogleMapsProvider";
 import { 
     Plus, Search, Edit2, Trash2, 
     Map as MapIcon, ChevronRight, Eye,
@@ -38,11 +39,7 @@ export default function DeliveryZones() {
     const mapRef = useRef<google.maps.Map | null>(null);
     const [mapCenter, setMapCenter] = useState({ lat: 16.5062, lng: 80.6480 }); // Vijayawada
 
-    const { isLoaded, loadError } = useJsApiLoader({
-        id: "google-map-script",
-        googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
-        libraries: libraries
-    });
+    const { isLoaded, loadError } = useGoogleMaps();
 
     // Location Search (Places Autocomplete)
     const [locationQuery, setLocationQuery] = useState("");

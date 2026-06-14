@@ -55,15 +55,15 @@ export default function OrdersPage() {
                 body: JSON.stringify({ password: deletePassword })
             });
 
-            const data = await res.json();
+            const data = await res.json().catch(() => ({}));
             if (!res.ok) {
                 throw new Error(data.error || 'Failed to delete order.');
             }
 
-            // Update local state list
-            setOrders(prev => prev.filter(o => o._id !== deletingOrderId));
+            setOrders(prev => prev.filter(o => String(o._id ?? o.id) !== String(deletingOrderId)));
             setIsDeleteModalOpen(false);
             setDeletingOrderId(null);
+            setDeletePassword('');
         } catch (err: any) {
             setDeleteError(err.message || 'Error occurred during deletion.');
         } finally {
@@ -388,7 +388,7 @@ export default function OrdersPage() {
                                         {/* Actions */}
                                         <td className="px-6 py-4 text-center align-top">
                                             <button
-                                                onClick={() => handleDeleteClick(order._id)}
+                                                onClick={() => handleDeleteClick(String(order._id ?? order.id))}
                                                 className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all active:scale-95 duration-200"
                                                 title="Delete Order Reference"
                                             >

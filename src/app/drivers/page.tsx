@@ -1,7 +1,38 @@
 "use client";
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { io } from "socket.io-client";
 import { apiUrl, socketUrl, getImageUrl } from "@/utils/api";
+import FleetOpsMap from "@/components/FleetOpsMap";
+
+type LiveOffer = {
+    order_id: string;
+    order_number?: string;
+    expires_at?: string;
+    pickup_address?: string;
+    dropoff_address?: string;
+    fare_total?: number;
+    seconds_left?: number | null;
+};
+
+type ActiveTrip = {
+    order_id: string;
+    order_number?: string;
+    status?: string;
+    pickup_address?: string;
+    dropoff_address?: string;
+    fare_total?: number;
+    payment_status?: string;
+};
+
+type FleetSummary = {
+    total: number;
+    online: number;
+    idle: number;
+    on_trip: number;
+    alert: number;
+    offline: number;
+    blocked: number;
+};
 
 type Driver = {
     _id: string;
@@ -18,6 +49,15 @@ type Driver = {
     createdAt: string;
     vehicles?: any[];
     selfie?: string;
+    is_on_trip?: boolean;
+    current_order_id?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+    location?: { type?: string; coordinates?: [number, number] };
+    ops_status?: 'idle' | 'on_trip' | 'alert' | 'offline' | 'blocked';
+    live_offer?: LiveOffer | null;
+    active_trip?: ActiveTrip | null;
+    location_updated_at?: string | null;
     
     // Designated Driver Fields
     driver_is_self?: boolean;
@@ -52,15 +92,38 @@ const DownloadIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" he
 const EyeIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>;
 const EditIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>;
 const TrashIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /><line x1="10" x2="10" y1="11" y2="17" /><line x1="14" x2="14" y1="11" y2="17" /></svg>;
+const MapPinIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="12" r="3" /></svg>;
+const RadioIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9" /><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5" /><circle cx="12" cy="12" r="2" /><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5" /><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19" /></svg>;
+
+const OPS_LABELS: Record<string, { label: string; bg: string; text: string; border: string; dot: string }> = {
+    idle: { label: 'Free / Online', bg: 'bg-emerald-500/10', text: 'text-emerald-700', border: 'border-emerald-200', dot: 'bg-emerald-500' },
+    on_trip: { label: 'On Trip', bg: 'bg-blue-500/10', text: 'text-blue-700', border: 'border-blue-200', dot: 'bg-blue-500' },
+    alert: { label: 'Alert Ringing', bg: 'bg-amber-500/10', text: 'text-amber-700', border: 'border-amber-200', dot: 'bg-amber-500 animate-pulse' },
+    offline: { label: 'Offline', bg: 'bg-slate-500/10', text: 'text-slate-600', border: 'border-slate-200', dot: 'bg-slate-400' },
+    blocked: { label: 'Blocked', bg: 'bg-rose-500/10', text: 'text-rose-700', border: 'border-rose-200', dot: 'bg-rose-500' },
+};
+
+const timeAgo = (value?: string | null) => {
+    if (!value) return '—';
+    const seconds = Math.floor((Date.now() - new Date(value).getTime()) / 1000);
+    if (seconds < 0) return 'just now';
+    if (seconds < 60) return `${seconds}s ago`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    return `${Math.floor(seconds / 3600)}h ago`;
+};
 
 export default function DriversPage() {
     const [drivers, setDrivers] = useState<Driver[]>([]);
+    const [fleetSummary, setFleetSummary] = useState<FleetSummary | null>(null);
+    const [lastFleetSync, setLastFleetSync] = useState<string>('');
+    const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
     // Filters & Search
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+    const [opsFilter, setOpsFilter] = useState<'all' | 'idle' | 'on_trip' | 'alert' | 'offline'>('all');
     const [kycFilter, setKycFilter] = useState<'all' | 'approved' | 'pending' | 'rejected' | 'not_started'>('all');
     const [vehicleFilter, setVehicleFilter] = useState<string>('all');
     const [sortBy, setSortBy] = useState<'name' | 'createdAt' | 'phone'>('createdAt');
@@ -78,35 +141,83 @@ export default function DriversPage() {
     });
     const [saving, setSaving] = useState(false);
 
-    // Fetch Initial Drivers & Setup Socket Sync
-    useEffect(() => {
-        fetchDrivers();
-
-        const socket = io(socketUrl);
-
-        socket.on('fleet_updated', () => {
-            console.log("Realtime: Fleet updated globally, syncing local view...");
-            fetchDrivers(true);
-        });
-
-        return () => {
-            socket.disconnect();
-        };
-    }, []);
-
-    const fetchDrivers = async (silent = false) => {
+    const fetchFleet = useCallback(async (silent = false) => {
         try {
             if (!silent) setLoading(true);
-            const res = await fetch(`${apiUrl}/drivers`);
-            if (!res.ok) throw new Error('System Warning: Data Sync Failure');
+            const res = await fetch(`${apiUrl}/drivers/fleet/live`);
+            if (!res.ok) throw new Error('System Warning: Fleet sync failed');
             const data = await res.json();
-            setDrivers(data);
+            setDrivers(data.fleet || []);
+            setFleetSummary(data.summary || null);
+            setLastFleetSync(data.updated_at || new Date().toISOString());
         } catch (err: any) {
             setError(err.message);
         } finally {
             if (!silent) setLoading(false);
         }
-    };
+    }, []);
+
+    // Fetch fleet + realtime socket sync
+    useEffect(() => {
+        fetchFleet();
+
+        const socket = io(socketUrl);
+        socket.emit('join_admin');
+
+        socket.on('fleet_updated', () => fetchFleet(true));
+        socket.on('admin_fleet_pulse', () => fetchFleet(true));
+        socket.on('order_status_change', () => fetchFleet(true));
+
+        socket.on('admin_driver_location', (payload: {
+            driver_id?: string;
+            latitude?: number;
+            longitude?: number;
+            at?: string;
+        }) => {
+            if (!payload?.driver_id) return;
+            setDrivers((prev) => prev.map((d) => {
+                if (String(d._id) !== String(payload.driver_id)) return d;
+                return {
+                    ...d,
+                    latitude: payload.latitude,
+                    longitude: payload.longitude,
+                    location: {
+                        type: 'Point',
+                        coordinates: [payload.longitude as number, payload.latitude as number],
+                    },
+                    location_updated_at: payload.at || new Date().toISOString(),
+                };
+            }));
+        });
+
+        socket.on('nearby_driver_update', (payload: {
+            driver_id?: string;
+            latitude?: number;
+            longitude?: number;
+        }) => {
+            if (!payload?.driver_id) return;
+            setDrivers((prev) => prev.map((d) => {
+                if (String(d._id) !== String(payload.driver_id)) return d;
+                return {
+                    ...d,
+                    latitude: payload.latitude,
+                    longitude: payload.longitude,
+                    location: {
+                        type: 'Point',
+                        coordinates: [payload.longitude as number, payload.latitude as number],
+                    },
+                    location_updated_at: new Date().toISOString(),
+                };
+            }));
+        });
+
+        const poll = setInterval(() => fetchFleet(true), 15000);
+
+        return () => {
+            clearInterval(poll);
+            socket.disconnect();
+        };
+    }, [fetchFleet]);
 
     // ─── Filtered & Sorted Data ────────────────────
     const filteredDrivers = useMemo(() => {
@@ -134,6 +245,14 @@ export default function DriversPage() {
         // Vehicle filter
         if (vehicleFilter !== 'all') result = result.filter(d => d.vehicle_type === vehicleFilter);
 
+        // Live ops filter
+        if (opsFilter !== 'all') {
+            result = result.filter((d) => {
+                if (opsFilter === 'offline') return d.ops_status === 'offline' || d.ops_status === 'blocked';
+                return d.ops_status === opsFilter;
+            });
+        }
+
         // Sort
         result.sort((a, b) => {
             let valA = (a as any)[sortBy] || '';
@@ -150,16 +269,19 @@ export default function DriversPage() {
         });
 
         return result;
-    }, [drivers, searchQuery, statusFilter, kycFilter, vehicleFilter, sortBy, sortOrder]);
+    }, [drivers, searchQuery, statusFilter, kycFilter, vehicleFilter, opsFilter, sortBy, sortOrder]);
 
     // ─── Stats ─────────────────────────────────────
     const stats = useMemo(() => ({
-        total: drivers.length,
-        active: drivers.filter(d => d.is_active).length,
-        inactive: drivers.filter(d => !d.is_active).length,
+        total: fleetSummary?.total ?? drivers.length,
+        active: fleetSummary?.online ?? drivers.filter(d => d.is_active).length,
+        idle: fleetSummary?.idle ?? drivers.filter(d => d.ops_status === 'idle').length,
+        onTrip: fleetSummary?.on_trip ?? drivers.filter(d => d.ops_status === 'on_trip').length,
+        alert: fleetSummary?.alert ?? drivers.filter(d => d.ops_status === 'alert').length,
+        offline: fleetSummary?.offline ?? drivers.filter(d => !d.is_active || d.ops_status === 'offline').length,
         kycApproved: drivers.filter(d => d.kyc_status === 'approved').length,
         kycPending: drivers.filter(d => d.kyc_status === 'pending').length,
-    }), [drivers]);
+    }), [drivers, fleetSummary]);
 
     const vehicleTypes = useMemo(() => {
         const types = new Set(drivers.map(d => d.vehicle_type).filter(Boolean));
@@ -268,6 +390,18 @@ export default function DriversPage() {
     };
 
     // ─── KYC Badge ─────────────────────────────────
+    const opsBadge = (status?: string) => {
+        const config = OPS_LABELS[status || 'offline'] || OPS_LABELS.offline;
+        return (
+            <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg ${config.bg} border ${config.border}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${config.dot}`}></span>
+                <span className={`text-[10px] font-black uppercase tracking-widest ${config.text}`}>
+                    {config.label}
+                </span>
+            </div>
+        );
+    };
+
     const kycBadge = (status: string) => {
         const specs: Record<string, any> = {
             approved: { bg: 'bg-emerald-500/10', text: 'text-emerald-700', border: 'border-emerald-200', dot: 'bg-emerald-500' },
@@ -309,19 +443,27 @@ export default function DriversPage() {
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Header */}
-            <div>
-                <h1 className="text-3xl font-black text-slate-800 tracking-tight">Fleet Command</h1>
-                <p className="text-slate-500 font-medium mt-1">Manage and monitor your entire driver network.</p>
+            <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
+                <div>
+                    <h1 className="text-3xl font-black text-slate-800 tracking-tight">Fleet Command</h1>
+                    <p className="text-slate-500 font-medium mt-1">
+                        Live ops — who is free, on trip, getting alerts, and where they are moving.
+                    </p>
+                </div>
+                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                    Last sync: {timeAgo(lastFleetSync)}
+                </div>
             </div>
 
-            {/* Stats Row */}
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+            {/* Live Ops Stats */}
+            <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
                 {[
-                    { label: 'Total Fleet', value: stats.total, icon: <UsersIcon />, gradient: 'from-slate-700 to-slate-900', shadow: 'shadow-slate-500/30' },
-                    { label: 'Active', value: stats.active, icon: <CheckCircleIcon />, gradient: 'from-emerald-500 to-teal-400', shadow: 'shadow-emerald-500/30' },
-                    { label: 'Inactive', value: stats.inactive, icon: <XCircleIcon />, gradient: 'from-rose-500 to-red-500', shadow: 'shadow-rose-500/30' },
-                    { label: 'KYC Cleared', value: stats.kycApproved, icon: <ShieldCheckIcon />, gradient: 'from-blue-500 to-indigo-500', shadow: 'shadow-blue-500/30' },
-                    { label: 'KYC Action Req', value: stats.kycPending, icon: <ShieldAlertIcon />, gradient: 'from-amber-500 to-orange-400', shadow: 'shadow-amber-500/30' },
+                    { label: 'Online', value: stats.active, gradient: 'from-emerald-500 to-teal-400', shadow: 'shadow-emerald-500/30', icon: <CheckCircleIcon /> },
+                    { label: 'Free / Idle', value: stats.idle, gradient: 'from-green-500 to-lime-500', shadow: 'shadow-green-500/30', icon: <UsersIcon /> },
+                    { label: 'On Trip', value: stats.onTrip, gradient: 'from-blue-500 to-indigo-500', shadow: 'shadow-blue-500/30', icon: <ShieldCheckIcon /> },
+                    { label: 'Alert Ringing', value: stats.alert, gradient: 'from-amber-500 to-orange-400', shadow: 'shadow-amber-500/30', icon: <RadioIcon /> },
+                    { label: 'Offline', value: stats.offline, gradient: 'from-slate-500 to-slate-700', shadow: 'shadow-slate-500/30', icon: <XCircleIcon /> },
+                    { label: 'KYC Pending', value: stats.kycPending, gradient: 'from-violet-500 to-purple-500', shadow: 'shadow-violet-500/30', icon: <ShieldAlertIcon /> },
                 ].map((s) => (
                     <div key={s.label} className="glass-panel p-5 rounded-2xl flex items-center gap-4 group hover:-translate-y-1 transition-all duration-300">
                         <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${s.gradient} flex items-center justify-center text-white shadow-lg ${s.shadow} group-hover:scale-110 transition-transform`}>
@@ -333,6 +475,32 @@ export default function DriversPage() {
                         </div>
                     </div>
                 ))}
+            </div>
+
+            {/* Live Fleet Map */}
+            <div className="glass-panel rounded-[28px] overflow-hidden border border-white/30">
+                <div className="px-5 py-4 border-b border-slate-100/80 flex flex-wrap items-center justify-between gap-3 bg-white/50">
+                    <div>
+                        <p className="text-sm font-black text-slate-800">Live Fleet Map</p>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-0.5">
+                            Green = Free • Blue = On Trip • Amber = Alert • Gray = Offline
+                        </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-wider">
+                        {Object.entries(OPS_LABELS).slice(0, 4).map(([key, cfg]) => (
+                            <span key={key} className={`px-2 py-1 rounded-lg border ${cfg.border} ${cfg.bg} ${cfg.text}`}>
+                                {cfg.label}
+                            </span>
+                        ))}
+                    </div>
+                </div>
+                <div className="h-[340px] bg-slate-100">
+                    <FleetOpsMap
+                        drivers={drivers}
+                        selectedId={selectedDriverId}
+                        onSelect={setSelectedDriverId}
+                    />
+                </div>
             </div>
 
             {/* SaaS Data Grid Area */}
@@ -360,6 +528,18 @@ export default function DriversPage() {
                             <option value="all">All Status</option>
                             <option value="active">Active Only</option>
                             <option value="inactive">Inactive Only</option>
+                        </select>
+
+                        <select
+                            value={opsFilter}
+                            onChange={(e) => setOpsFilter(e.target.value as any)}
+                            className="px-4 py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 uppercase tracking-wider cursor-pointer shadow-sm"
+                        >
+                            <option value="all">All Ops</option>
+                            <option value="idle">Free / Idle</option>
+                            <option value="on_trip">On Trip</option>
+                            <option value="alert">Alert Ringing</option>
+                            <option value="offline">Offline</option>
                         </select>
 
                         <select
@@ -401,19 +581,21 @@ export default function DriversPage() {
                         <thead>
                             <tr className="border-b border-slate-200/50 bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
                                 <th className="px-6 py-5">Operator Profile</th>
+                                <th className="px-6 py-5">Live Ops</th>
+                                <th className="px-6 py-5">Location</th>
                                 <th className="px-6 py-5">Contact Details</th>
                                 <th className="px-6 py-5">Assets (Vehicle)</th>
                                 <th className="px-6 py-5 cursor-pointer hover:text-indigo-500 flex items-center gap-1" onClick={() => { setSortBy('createdAt'); setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc') }}>
                                     Compliance (KYC) {sortBy === 'createdAt' && (sortOrder === 'desc' ? '↓' : '↑')}
                                 </th>
-                                <th className="px-6 py-5 text-center">Status</th>
+                                <th className="px-6 py-5 text-center">Online</th>
                                 <th className="px-6 py-5 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100/50">
                             {filteredDrivers.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-16 text-center">
+                                    <td colSpan={8} className="px-6 py-16 text-center">
                                         <div className="inline-flex justify-center items-center w-16 h-16 rounded-full bg-slate-100 text-slate-400 mb-4">
                                             <SearchIcon />
                                         </div>
@@ -423,7 +605,11 @@ export default function DriversPage() {
                                 </tr>
                             ) : (
                                 filteredDrivers.map((driver) => (
-                                    <tr key={driver._id} className="hover:bg-white transition-colors group">
+                                    <tr
+                                        key={driver._id}
+                                        className={`hover:bg-white transition-colors group ${selectedDriverId === driver._id ? 'bg-indigo-50/60' : ''}`}
+                                        onClick={() => setSelectedDriverId(driver._id)}
+                                    >
 
                                         {/* Profile */}
                                         <td className="px-6 py-4">
@@ -457,6 +643,77 @@ export default function DriversPage() {
                                             </div>
                                         </td>
 
+                                        {/* Live Ops */}
+                                        <td className="px-6 py-4 align-top">
+                                            {opsBadge(driver.ops_status)}
+                                            {driver.ops_status === 'alert' && driver.live_offer && (
+                                                <div className="mt-2 p-2 rounded-lg bg-amber-50 border border-amber-100">
+                                                    <p className="text-[10px] font-black text-amber-800 uppercase tracking-wider">
+                                                        Trip Alert
+                                                    </p>
+                                                    <p className="text-[11px] font-bold text-slate-700 mt-0.5">
+                                                        #{driver.live_offer.order_number || driver.live_offer.order_id?.slice(-6)}
+                                                    </p>
+                                                    <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">
+                                                        {driver.live_offer.pickup_address || 'Pickup'}
+                                                    </p>
+                                                    {driver.live_offer.seconds_left != null && (
+                                                        <p className="text-[9px] font-black text-amber-700 mt-1">
+                                                            {driver.live_offer.seconds_left}s left
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            )}
+                                            {driver.ops_status === 'on_trip' && driver.active_trip && (
+                                                <div className="mt-2 p-2 rounded-lg bg-blue-50 border border-blue-100">
+                                                    <p className="text-[10px] font-black text-blue-800 uppercase tracking-wider">
+                                                        {driver.active_trip.status?.replace('_', ' ') || 'In Transit'}
+                                                    </p>
+                                                    <p className="text-[11px] font-bold text-slate-700 mt-0.5">
+                                                        #{driver.active_trip.order_number || driver.active_trip.order_id?.slice(-6)}
+                                                    </p>
+                                                    <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">
+                                                        → {driver.active_trip.dropoff_address || 'Dropoff'}
+                                                    </p>
+                                                </div>
+                                            )}
+                                            {driver.ops_status === 'idle' && (
+                                                <p className="text-[10px] font-bold text-emerald-600 mt-1.5 uppercase tracking-wider">
+                                                    Ready for dispatch
+                                                </p>
+                                            )}
+                                        </td>
+
+                                        {/* Location */}
+                                        <td className="px-6 py-4 align-top">
+                                            {Number.isFinite(driver.latitude) && Number.isFinite(driver.longitude) ? (
+                                                <div>
+                                                    <div className="flex items-start gap-1.5">
+                                                        <span className="text-cyan-500 mt-0.5"><MapPinIcon /></span>
+                                                        <div>
+                                                            <p className="font-mono text-[11px] font-bold text-slate-700">
+                                                                {(driver.latitude as number).toFixed(5)}, {(driver.longitude as number).toFixed(5)}
+                                                            </p>
+                                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-1">
+                                                                Updated {timeAgo(driver.location_updated_at)}
+                                                            </p>
+                                                            <a
+                                                                href={`https://www.google.com/maps?q=${driver.latitude},${driver.longitude}`}
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                                onClick={(e) => e.stopPropagation()}
+                                                                className="text-[10px] font-black text-indigo-600 hover:text-indigo-800 mt-1 inline-block uppercase tracking-wider"
+                                                            >
+                                                                Open in Maps →
+                                                            </a>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <p className="text-[11px] font-bold text-slate-400">No GPS yet</p>
+                                            )}
+                                        </td>
+
                                         {/* Contact */}
                                         <td className="px-6 py-4">
                                             <p className="font-semibold text-sm text-slate-700">{driver.phone}</p>
@@ -486,8 +743,8 @@ export default function DriversPage() {
                                             </p>
                                         </td>
 
-                                        {/* Status Toggle */}
-                                        <td className="px-6 py-4 text-center">
+                                        {/* Online Toggle */}
+                                        <td className="px-6 py-4 text-center align-top" onClick={(e) => e.stopPropagation()}>
                                             <button
                                                 onClick={() => toggleActive(driver)}
                                                 className={`relative w-12 h-6 rounded-full transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${driver.is_active ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : 'bg-slate-300'}`}
@@ -500,7 +757,7 @@ export default function DriversPage() {
                                         </td>
 
                                         {/* Actions */}
-                                        <td className="px-6 py-4 text-right">
+                                        <td className="px-6 py-4 text-right align-top" onClick={(e) => e.stopPropagation()}>
                                             <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <button onClick={() => setViewModal(driver)} className="p-2 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded-lg transition-all" title="View Profile"><EyeIcon /></button>
                                                 <button onClick={() => openEdit(driver)} className="p-2 hover:bg-indigo-50 text-slate-400 hover:text-amber-600 rounded-lg transition-all" title="Edit Metadata"><EditIcon /></button>
@@ -632,6 +889,20 @@ export default function DriversPage() {
                                     <div>
                                         <h4 className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500 mb-3 ml-1">Compliance & Status</h4>
                                         <div className="bg-white rounded-[28px] p-6 border border-slate-100 shadow-sm space-y-5">
+                                            <div>
+                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Live Ops Status</p>
+                                                <div className="mb-3">{opsBadge(viewModal.ops_status)}</div>
+                                                {viewModal.active_trip && (
+                                                    <p className="text-[11px] font-bold text-blue-700">
+                                                        Trip #{viewModal.active_trip.order_number} — {viewModal.active_trip.status}
+                                                    </p>
+                                                )}
+                                                {viewModal.live_offer && (
+                                                    <p className="text-[11px] font-bold text-amber-700">
+                                                        Alert for #{viewModal.live_offer.order_number}
+                                                    </p>
+                                                )}
+                                            </div>
                                             <div>
                                                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Sync Protocol Status</p>
                                                 <div className="flex items-center justify-between">
