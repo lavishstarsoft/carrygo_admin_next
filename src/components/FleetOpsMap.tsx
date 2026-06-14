@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useMemo, useRef } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { GoogleMap, Marker } from "@react-google-maps/api";
 import { useGoogleMaps } from "@/components/GoogleMapsProvider";
+import MapsSetupHelp from "@/components/MapsSetupHelp";
 import { backendUrl } from "@/utils/api";
 
 export type FleetDriverPin = {
@@ -33,7 +34,14 @@ type Props = {
     onSelect?: (id: string) => void;
 };
 
-function FleetStaticFallback({ drivers }: { drivers: FleetDriverPin[] }) {
+function FleetStaticFallback({
+    drivers,
+    onError,
+}: {
+    drivers: FleetDriverPin[];
+    onError?: (message: string) => void;
+}) {
+    const [failed, setFailed] = useState(false);
     const pins = drivers.filter(
         (d) => Number.isFinite(d.latitude) && Number.isFinite(d.longitude),
     );
@@ -52,36 +60,44 @@ function FleetStaticFallback({ drivers }: { drivers: FleetDriverPin[] }) {
         return `${backendUrl}/api/maps/fleet-static?${qs.toString()}`;
     }, [pins]);
 
+    if (failed) {
+        return (
+            <MapsSetupHelp
+                title="Static map also failed"
+                detail="Usually billing not enabled or Maps Static API disabled on Google Cloud."
+            />
+        );
+    }
+
     return (
         <div className="relative w-full h-full bg-slate-100">
             <img
                 src={src}
                 alt="Fleet map snapshot"
                 className="w-full h-full object-cover"
+                onError={async () => {
+                    setFailed(true);
+                    try {
+                        const res = await fetch(src);
+                        const data = await res.json().catch(() => null);
+                        const detail = data?.detail || data?.error || "Static map request failed";
+                        onError?.(detail);
+                    } catch {
+                        onError?.("Static map request failed");
+                    }
+                }}
             />
             <div className="absolute bottom-2 left-2 right-2 bg-white/90 backdrop-blur-sm rounded-lg px-3 py-2 text-[10px] font-bold text-slate-600 border border-slate-200">
-                Static map mode (server key) — enable Maps JavaScript API for interactive map
+                Static map mode — enable billing + Maps JavaScript API for interactive map
             </div>
-        </div>
-    );
-}
-
-function MapsKeyHelp() {
-    return (
-        <div className="h-full flex flex-col items-center justify-center text-center p-6 bg-amber-50 rounded-2xl border border-amber-100">
-            <p className="text-sm font-black text-amber-900">Google Maps key missing</p>
-            <p className="text-xs text-amber-800 mt-2 max-w-md">
-                Add <code className="bg-white px-1 rounded">NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</code> in
-                {" "}<code className="bg-white px-1 rounded">admin-panel/.env.local</code> and restart
-                {" "}<code className="bg-white px-1 rounded">npm run dev</code>.
-            </p>
         </div>
     );
 }
 
 export default function FleetOpsMap({ drivers, selectedId, onSelect }: Props) {
     const mapRef = useRef<google.maps.Map | null>(null);
-    const { isLoaded, loadError, apiKey } = useGoogleMaps();
+    const [staticError, setStaticError] = useState<string | null>(null);
+    const { isLoaded, loadError, authFailed, apiKey } = useGoogleMaps();
 
     const pins = useMemo(
         () => drivers.filter(
@@ -106,23 +122,31 @@ export default function FleetOpsMap({ drivers, selectedId, onSelect }: Props) {
     }, [pins, selectedId]);
 
     if (!apiKey) {
-        return <MapsKeyHelp />;
+        return (
+            <MapsSetupHelp
+                title="Google Maps key missing"
+                detail="Add NEXT_PUBLIC_GOOGLE_MAPS_API_KEY in admin-panel/.env.local and restart npm run dev."
+            />
+        );
     }
 
-    if (loadError) {
+    if (authFailed || loadError) {
         return (
             <div className="h-full flex flex-col min-h-[300px]">
                 <div className="flex-1 min-h-0">
-                    <FleetStaticFallback drivers={drivers} />
+                    <FleetStaticFallback drivers={drivers} onError={setStaticError} />
                 </div>
                 <div className="px-4 py-3 bg-amber-50 border-t border-amber-100 text-left shrink-0">
                     <p className="text-xs font-black text-amber-900 uppercase tracking-wider">Interactive map unavailable</p>
                     <p className="text-[11px] text-amber-800 mt-1 leading-relaxed">
-                        Server Directions API works, but browser needs <strong>Maps JavaScript API</strong> +
-                        referrer <code className="bg-white px-1 rounded">http://localhost:3000/*</code> in Google Cloud Console.
+                        Google Cloud lo <strong>billing enable</strong> cheyandi + <strong>Maps JavaScript API</strong> on cheyandi.
+                        Referrer lo <code className="bg-white px-1 rounded">http://localhost:3000/*</code> add cheyandi.
                     </p>
-                    {loadError.message ? (
+                    {loadError?.message ? (
                         <p className="text-[10px] text-amber-700 mt-1 font-mono break-all">{loadError.message}</p>
+                    ) : null}
+                    {staticError ? (
+                        <p className="text-[10px] text-amber-700 mt-1 font-mono break-all">{staticError}</p>
                     ) : null}
                 </div>
             </div>
@@ -132,7 +156,7 @@ export default function FleetOpsMap({ drivers, selectedId, onSelect }: Props) {
     if (!isLoaded) {
         return (
             <div className="h-full relative bg-slate-100">
-                <FleetStaticFallback drivers={drivers} />
+                <FleetStaticFallback drivers={drivers} onError={setStaticError} />
                 <div className="absolute inset-0 flex items-center justify-center bg-white/40 backdrop-blur-[1px]">
                     <p className="text-sm text-slate-600 font-bold animate-pulse">Loading interactive map...</p>
                 </div>

@@ -6,6 +6,7 @@ import {
     Polygon, Circle
 } from "@react-google-maps/api";
 import { useGoogleMaps } from "@/components/GoogleMapsProvider";
+import MapsSetupHelp from "@/components/MapsSetupHelp";
 import { 
     Plus, Search, Edit2, Trash2, 
     Map as MapIcon, ChevronRight, Eye,
@@ -39,7 +40,7 @@ export default function DeliveryZones() {
     const mapRef = useRef<google.maps.Map | null>(null);
     const [mapCenter, setMapCenter] = useState({ lat: 16.5062, lng: 80.6480 }); // Vijayawada
 
-    const { isLoaded, loadError } = useGoogleMaps();
+    const { isLoaded, loadError, authFailed } = useGoogleMaps();
 
     // Location Search (Places Autocomplete)
     const [locationQuery, setLocationQuery] = useState("");
@@ -258,7 +259,14 @@ export default function DeliveryZones() {
         } catch (err) { console.error(err); }
     };
 
-    if (loadError) return <div className="p-10 text-rose-500 font-bold bg-rose-50 rounded-2xl">MAP_LOAD_ERROR</div>;
+    if (loadError || authFailed) {
+        return (
+            <MapsSetupHelp
+                title="Delivery zones map unavailable"
+                detail={loadError?.message || "Enable billing + Maps JavaScript API + Places API on Google Cloud."}
+            />
+        );
+    }
     if (!isLoaded) return <div className="p-10 text-slate-400 font-bold animate-pulse">Loading Map Services...</div>;
 
     const filteredZones = zones
