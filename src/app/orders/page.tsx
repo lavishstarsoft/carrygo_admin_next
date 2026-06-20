@@ -1,6 +1,7 @@
 "use client";
 import React, { useEffect, useState, useMemo } from 'react';
 import { apiUrl } from '@/utils/api';
+import OrderTrackingMap, { type TrackOrder } from '@/components/OrderTrackingMap';
 
 // Premium Icons
 const PackageIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m7.5 4.27 9 5.15" /><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" /><path d="m3.3 7 8.7 5 8.7-5" /><path d="M12 22V12" /></svg>;
@@ -12,6 +13,7 @@ const ShieldAlertIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="20"
 const DownloadIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" x2="12" y1="15" y2="3" /></svg>;
 const MapPinIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></svg>;
 const NavigationIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11" /></svg>;
+const EyeIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>;
 const TrashIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>;
 
 export default function OrdersPage() {
@@ -31,6 +33,14 @@ export default function OrdersPage() {
     const [statusFilter, setStatusFilter] = useState('all');
     const [sortBy, setSortBy] = useState<'createdAt' | 'fare'>('createdAt');
     const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
+    const [trackingOrder, setTrackingOrder] = useState<TrackOrder | null>(null);
+
+    const TRACKABLE_STATUSES = ['accepted', 'driver_arrived', 'picked_up', 'in_transit', 'delivered'];
+    const canTrack = (order: any) =>
+        Boolean(order.driver_id) &&
+        TRACKABLE_STATUSES.includes(order.status) &&
+        order.pickup?.lat &&
+        order.dropoff?.lat;
 
     const handleDeleteClick = (orderId: string) => {
         setDeletingOrderId(orderId);
@@ -213,6 +223,27 @@ export default function OrdersPage() {
                 ))}
             </div>
 
+            {/* Live Order Route Map */}
+            {trackingOrder ? (
+                <div className="glass-panel rounded-[28px] overflow-hidden border border-white/30">
+                    <div className="px-5 py-3 border-b border-slate-100/80 bg-white/50 flex items-center justify-between">
+                        <div>
+                            <p className="text-sm font-black text-slate-800">Live Order Route</p>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-0.5">
+                                Driver movement · pickup · drop · road route (like user & driver app)
+                            </p>
+                        </div>
+                    </div>
+                    <div className="h-[520px] bg-slate-100">
+                        <OrderTrackingMap
+                            key={trackingOrder._id}
+                            order={trackingOrder}
+                            onClose={() => setTrackingOrder(null)}
+                        />
+                    </div>
+                </div>
+            ) : null}
+
             {/* Data Grid Command Bar */}
             <div className="glass-panel rounded-[32px] overflow-hidden flex flex-col">
                 <div className="p-6 border-b border-white/20 bg-white/40 flex flex-col lg:flex-row gap-4 justify-between items-center">
@@ -304,7 +335,11 @@ export default function OrdersPage() {
                                 </tr>
                             ) : (
                                 filteredOrders.map((order: any) => (
-                                    <tr key={order._id} className="hover:bg-white transition-colors group">
+                                    <tr
+                                        key={order._id}
+                                        className={`hover:bg-white transition-colors group ${trackingOrder?._id === order._id ? 'bg-cyan-50/50' : ''} ${canTrack(order) ? 'cursor-pointer' : ''}`}
+                                        onClick={() => { if (canTrack(order)) setTrackingOrder(order); }}
+                                    >
                                         {/* Ref */}
                                         <td className="px-6 py-4 align-top">
                                             <div className="inline-block bg-white hover:border-cyan-200 hover:text-cyan-700 transition-colors border border-slate-200 shadow-sm px-2.5 py-1.5 rounded-lg">
@@ -387,13 +422,34 @@ export default function OrdersPage() {
 
                                         {/* Actions */}
                                         <td className="px-6 py-4 text-center align-top">
-                                            <button
-                                                onClick={() => handleDeleteClick(String(order._id ?? order.id))}
-                                                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all active:scale-95 duration-200"
-                                                title="Delete Order Reference"
-                                            >
-                                                <TrashIcon />
-                                            </button>
+                                            <div className="flex items-center justify-center gap-1">
+                                                {canTrack(order) ? (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setTrackingOrder(order);
+                                                        }}
+                                                        className={`p-2 rounded-lg transition-all active:scale-95 duration-200 ${
+                                                            trackingOrder?._id === order._id
+                                                                ? 'text-cyan-700 bg-cyan-50'
+                                                                : 'text-slate-400 hover:text-cyan-600 hover:bg-cyan-50'
+                                                        }`}
+                                                        title="Track live route on map"
+                                                    >
+                                                        <EyeIcon />
+                                                    </button>
+                                                ) : null}
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleDeleteClick(String(order._id ?? order.id));
+                                                    }}
+                                                    className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all active:scale-95 duration-200"
+                                                    title="Delete Order Reference"
+                                                >
+                                                    <TrashIcon />
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))

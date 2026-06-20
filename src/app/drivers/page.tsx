@@ -99,8 +99,8 @@ const OPS_LABELS: Record<string, { label: string; bg: string; text: string; bord
     idle: { label: 'Free / Online', bg: 'bg-emerald-500/10', text: 'text-emerald-700', border: 'border-emerald-200', dot: 'bg-emerald-500' },
     on_trip: { label: 'On Trip', bg: 'bg-blue-500/10', text: 'text-blue-700', border: 'border-blue-200', dot: 'bg-blue-500' },
     alert: { label: 'Alert Ringing', bg: 'bg-amber-500/10', text: 'text-amber-700', border: 'border-amber-200', dot: 'bg-amber-500 animate-pulse' },
-    offline: { label: 'Offline', bg: 'bg-slate-500/10', text: 'text-slate-600', border: 'border-slate-200', dot: 'bg-slate-400' },
-    blocked: { label: 'Blocked', bg: 'bg-rose-500/10', text: 'text-rose-700', border: 'border-rose-200', dot: 'bg-rose-500' },
+    offline: { label: 'Inactive', bg: 'bg-red-500/10', text: 'text-red-700', border: 'border-red-200', dot: 'bg-red-500' },
+    blocked: { label: 'Blocked', bg: 'bg-red-900/10', text: 'text-red-900', border: 'border-red-300', dot: 'bg-red-900' },
 };
 
 const timeAgo = (value?: string | null) => {
@@ -483,7 +483,7 @@ export default function DriversPage() {
                     <div>
                         <p className="text-sm font-black text-slate-800">Live Fleet Map</p>
                         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-0.5">
-                            Green = Free • Blue = On Trip • Amber = Alert • Gray = Offline
+                            Green = Active • Blue = On Transit • Amber = Alert • Red = Inactive
                         </p>
                     </div>
                     <div className="flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-wider">
@@ -494,7 +494,7 @@ export default function DriversPage() {
                         ))}
                     </div>
                 </div>
-                <div className="h-[340px] bg-slate-100">
+                <div className="h-[560px] bg-slate-100">
                     <FleetOpsMap
                         drivers={drivers}
                         selectedId={selectedDriverId}

@@ -63,6 +63,11 @@ export default function SettingsPage() {
 
     const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
 
+    const [goodsTypes, setGoodsTypes] = useState<OptionItem[]>([]);
+    const [restrictedItemsDesc, setRestrictedItemsDesc] = useState("");
+    const [restrictedItemsList, setRestrictedItemsList] = useState<string[]>([]);
+    const [bookingRules, setBookingRules] = useState<string[]>([]);
+
     // Track which vehicle card is expanded
     const [expandedVehicle, setExpandedVehicle] = useState<number | null>(null);
 
@@ -73,6 +78,7 @@ export default function SettingsPage() {
         const fetchSettings = async () => {
             try {
                 const res = await fetch(`${apiUrl}/settings/app_settings`);
+                const resBooking = await fetch(`${apiUrl}/settings/booking_config`);
 
                 if (!res.ok) throw new Error("Failed to fetch settings");
 
@@ -81,6 +87,16 @@ export default function SettingsPage() {
                     setCities(data.value.cities || []);
                     const rawVehicles = data.value.vehicleTypes || [];
                     setVehicleTypes(rawVehicles.map(migrateVehicleType));
+                }
+
+                if (resBooking.ok) {
+                    const bookingData = await resBooking.json();
+                    if (bookingData && bookingData.value) {
+                        setGoodsTypes(bookingData.value.goodsTypes || []);
+                        setRestrictedItemsDesc(bookingData.value.restrictedItemsDesc || "");
+                        setRestrictedItemsList(bookingData.value.restrictedItemsList || []);
+                        setBookingRules(bookingData.value.bookingRules || []);
+                    }
                 }
             } catch (err: any) {
                 setError(err.message);
@@ -110,7 +126,21 @@ export default function SettingsPage() {
                 body: JSON.stringify(payload)
             });
 
-            if (!res.ok) throw new Error("Failed to save settings");
+            const bookingPayload = {
+                value: {
+                    goodsTypes,
+                    restrictedItemsDesc,
+                    restrictedItemsList,
+                    bookingRules
+                }
+            };
+            const resBooking = await fetch(`${apiUrl}/settings/booking_config`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(bookingPayload)
+            });
+
+            if (!res.ok || !resBooking.ok) throw new Error("Failed to save settings");
 
             setSuccessMsg("Settings saved successfully!");
             setTimeout(() => setSuccessMsg(""), 3000);
@@ -222,6 +252,45 @@ export default function SettingsPage() {
         const updated = [...vehicleTypes];
         (updated[vIdx].optionLists[olIdx].options[itemIdx] as any)[field] = value;
         setVehicleTypes(updated);
+    };
+
+    // ─── Booking Config helpers ─────────────────────────
+    const addGoodsType = () => {
+        setGoodsTypes([...goodsTypes, { id: Date.now().toString(), label: "New Goods Type", icon: "package-variant" }]);
+    };
+    const updateGoodsType = (index: number, field: string, value: string) => {
+        const updated = [...goodsTypes];
+        updated[index] = { ...updated[index], [field]: value };
+        setGoodsTypes(updated);
+    };
+    const removeGoodsType = (index: number) => {
+        const updated = [...goodsTypes];
+        updated.splice(index, 1);
+        setGoodsTypes(updated);
+    };
+
+    const addRestrictedItem = () => setRestrictedItemsList([...restrictedItemsList, "New Item"]);
+    const updateRestrictedItem = (index: number, value: string) => {
+        const updated = [...restrictedItemsList];
+        updated[index] = value;
+        setRestrictedItemsList(updated);
+    };
+    const removeRestrictedItem = (index: number) => {
+        const updated = [...restrictedItemsList];
+        updated.splice(index, 1);
+        setRestrictedItemsList(updated);
+    };
+
+    const addBookingRule = () => setBookingRules([...bookingRules, "New Rule"]);
+    const updateBookingRule = (index: number, value: string) => {
+        const updated = [...bookingRules];
+        updated[index] = value;
+        setBookingRules(updated);
+    };
+    const removeBookingRule = (index: number) => {
+        const updated = [...bookingRules];
+        updated.splice(index, 1);
+        setBookingRules(updated);
     };
 
     // ─── Render ─────────────────────────────────────────
@@ -535,6 +604,75 @@ export default function SettingsPage() {
                     </div>
                 )}
             </div>
+
+            {/* ─── Booking Config ────────────────────────────── */}
+            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm mb-8">
+                <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
+                    📦 Booking Configuration
+                </h3>
+
+                {/* Goods Types */}
+                <div className="mb-6">
+                    <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-sm font-bold text-slate-700">Goods Types</h4>
+                        <button onClick={addGoodsType} className="text-xs text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg font-medium hover:bg-indigo-100 transition">+ Add Goods Type</button>
+                    </div>
+                    <div className="space-y-2">
+                        {goodsTypes.map((item, idx) => (
+                            <div key={idx} className="flex gap-2 items-center">
+                                <input type="text" value={item.id} onChange={(e) => updateGoodsType(idx, 'id', e.target.value)} className="w-1/4 border border-slate-200 rounded text-sm px-3 py-2 focus:outline-none focus:border-indigo-500" placeholder="ID (e.g. 1)" />
+                                <input type="text" value={item.label} onChange={(e) => updateGoodsType(idx, 'label', e.target.value)} className="w-2/4 border border-slate-200 rounded text-sm px-3 py-2 focus:outline-none focus:border-indigo-500" placeholder="Label (e.g. Electronics)" />
+                                <input type="text" value={item.icon || ''} onChange={(e) => updateGoodsType(idx, 'icon', e.target.value)} className="w-1/4 border border-slate-200 rounded text-sm px-3 py-2 focus:outline-none focus:border-indigo-500" placeholder="Icon (MDI Name)" />
+                                <button onClick={() => removeGoodsType(idx)} className="text-red-400 hover:text-red-600 px-2 font-bold">✕</button>
+                            </div>
+                        ))}
+                        {goodsTypes.length === 0 && <p className="text-sm text-slate-400 italic">No goods types configured.</p>}
+                    </div>
+                </div>
+
+                <hr className="my-6 border-slate-100" />
+
+                {/* Restricted Items */}
+                <div className="mb-6">
+                    <h4 className="text-sm font-bold text-slate-700 mb-3">Restricted Items Notice</h4>
+                    <div className="mb-4">
+                        <label className="block text-xs font-semibold text-slate-500 mb-1">Short Description (Warning text)</label>
+                        <input type="text" value={restrictedItemsDesc} onChange={(e) => setRestrictedItemsDesc(e.target.value)} className="w-full border border-slate-200 rounded text-sm px-3 py-2 focus:outline-none focus:border-indigo-500" placeholder="e.g. Narcotics drugs, explosives & more" />
+                    </div>
+                    
+                    <div className="flex items-center justify-between mb-3">
+                        <label className="block text-xs font-semibold text-slate-500">Detailed Restricted Items List</label>
+                        <button onClick={addRestrictedItem} className="text-xs text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg font-medium hover:bg-indigo-100 transition">+ Add Item</button>
+                    </div>
+                    <div className="space-y-2">
+                        {restrictedItemsList.map((item, idx) => (
+                            <div key={idx} className="flex gap-2 items-center">
+                                <input type="text" value={item} onChange={(e) => updateRestrictedItem(idx, e.target.value)} className="flex-1 border border-slate-200 rounded text-sm px-3 py-2 focus:outline-none focus:border-indigo-500" placeholder="e.g. Firearms and Ammunition" />
+                                <button onClick={() => removeRestrictedItem(idx)} className="text-red-400 hover:text-red-600 px-2 font-bold">✕</button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <hr className="my-6 border-slate-100" />
+
+                {/* Booking Rules */}
+                <div>
+                    <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-sm font-bold text-slate-700">Booking Rules (Read before Booking)</h4>
+                        <button onClick={addBookingRule} className="text-xs text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg font-medium hover:bg-indigo-100 transition">+ Add Rule</button>
+                    </div>
+                    <div className="space-y-2">
+                        {bookingRules.map((rule, idx) => (
+                            <div key={idx} className="flex gap-2 items-center">
+                                <input type="text" value={rule} onChange={(e) => updateBookingRule(idx, e.target.value)} className="flex-1 border border-slate-200 rounded text-sm px-3 py-2 focus:outline-none focus:border-indigo-500" placeholder="e.g. Fare includes 15 mins free loading time." />
+                                <button onClick={() => removeBookingRule(idx)} className="text-red-400 hover:text-red-600 px-2 font-bold">✕</button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
         </div>
     );
 }
