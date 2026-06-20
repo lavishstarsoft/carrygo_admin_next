@@ -310,8 +310,8 @@ export default function OrderTrackingMap({ order: initialOrder, onClose }: Props
         <div className="relative w-full h-full fleet-map-root">
             <GoogleMap
                 mapContainerStyle={MAP_CONTAINER}
-                defaultCenter={pickup || dropoff || DEFAULT_CENTER}
-                defaultZoom={13}
+                center={pickup || dropoff || DEFAULT_CENTER}
+                zoom={13}
                 onLoad={(map) => { mapRef.current = map; }}
                 onUnmount={() => { mapRef.current = null; }}
                 options={{
