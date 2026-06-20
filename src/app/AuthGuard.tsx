@@ -55,6 +55,10 @@ const Percent = () => (
     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" x2="5" y1="5" y2="19" /><circle cx="6.5" cy="6.5" r="2.5" /><circle cx="17.5" cy="17.5" r="2.5" /></svg>
 );
 
+const FileText = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" x2="8" y1="13" y2="13" /><line x1="16" x2="8" y1="17" y2="17" /><polyline points="10 9 9 9 8 9" /></svg>
+);
+
 const NAV_ITEMS = [
     { label: "Dashboard", path: "/", icon: <LayoutDashboard /> },
     { label: "Fleet Drivers", path: "/drivers", icon: <Users /> },
@@ -65,6 +69,7 @@ const NAV_ITEMS = [
     { label: "Coupons & Offers", path: "/coupons", icon: <Percent /> },
     { label: "KYC Verification", path: "/kyc", icon: <ShieldCheck /> },
     { label: "System Config", path: "/settings", icon: <Settings /> },
+    { label: "Static Pages", path: "/static-pages", icon: <FileText /> },
 ];
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
