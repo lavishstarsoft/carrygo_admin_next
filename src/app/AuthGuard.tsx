@@ -51,6 +51,10 @@ const Banknote = () => (
     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="12" x="2" y="6" rx="2" /><circle cx="12" cy="12" r="2" /><path d="M6 12h.01M18 12h.01" /></svg>
 );
 
+const Percent = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" x2="5" y1="5" y2="19" /><circle cx="6.5" cy="6.5" r="2.5" /><circle cx="17.5" cy="17.5" r="2.5" /></svg>
+);
+
 const NAV_ITEMS = [
     { label: "Dashboard", path: "/", icon: <LayoutDashboard /> },
     { label: "Fleet Drivers", path: "/drivers", icon: <Users /> },
@@ -58,6 +62,7 @@ const NAV_ITEMS = [
     { label: "Logistics Orders", path: "/orders", icon: <Package /> },
     { label: "Delivery Zones", path: "/delivery-zones", icon: <MapIcon /> },
     { label: "Pricing Matrix", path: "/pricing", icon: <Banknote /> },
+    { label: "Coupons & Offers", path: "/coupons", icon: <Percent /> },
     { label: "KYC Verification", path: "/kyc", icon: <ShieldCheck /> },
     { label: "System Config", path: "/settings", icon: <Settings /> },
 ];
